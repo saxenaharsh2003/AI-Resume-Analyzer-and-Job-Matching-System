@@ -1,0 +1,10 @@
+fastapi
+uvicorn[standard]
+python-multipart
+PyPDF2
+docx2txt
+spacy>=3.7.0
+scikit-learn
+openai
+httpx
+
