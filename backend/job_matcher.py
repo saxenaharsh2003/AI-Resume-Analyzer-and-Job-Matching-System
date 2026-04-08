@@ -7,7 +7,10 @@ from dataclasses import dataclass
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
-from .nlp_skills import extract_skills
+try:
+    from .nlp_skills import extract_skills
+except ImportError:  # Allows imports when backend is cwd
+    from nlp_skills import extract_skills
 
 _WORD_RE = re.compile(r"[a-zA-Z][a-zA-Z0-9+#.-]{1,}")
 _STOPWORDS = {

@@ -6,8 +6,12 @@ from typing import Any
 
 import httpx
 
-from .skills_taxonomy import DEFAULT_SKILLS
-from .skills_taxonomy import canonicalize_skill
+try:
+    from .skills_taxonomy import DEFAULT_SKILLS
+    from .skills_taxonomy import canonicalize_skill
+except ImportError:  # Allows imports when backend is cwd
+    from skills_taxonomy import DEFAULT_SKILLS
+    from skills_taxonomy import canonicalize_skill
 
 # Sample in-memory dataset. Replace with DB-backed jobs later.
 SAMPLE_JOBS: list[dict] = [

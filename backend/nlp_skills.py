@@ -6,7 +6,10 @@ import spacy
 from spacy.matcher import PhraseMatcher
 from spacy.language import Language
 
-from .skills_taxonomy import DEFAULT_SKILLS, canonicalize_skill
+try:
+    from .skills_taxonomy import DEFAULT_SKILLS, canonicalize_skill
+except ImportError:  # Allows imports when backend is cwd
+    from skills_taxonomy import DEFAULT_SKILLS, canonicalize_skill
 
 _MAX_DOC_CHARS = 1_000_000
 

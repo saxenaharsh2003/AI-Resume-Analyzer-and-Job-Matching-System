@@ -10,7 +10,10 @@ import docx2txt
 from PyPDF2 import PdfReader
 from PyPDF2.errors import PdfReadError
 
-from .nlp_skills import extract_skills
+try:
+    from .nlp_skills import extract_skills
+except ImportError:  # Allows imports when backend is cwd
+    from nlp_skills import extract_skills
 
 
 _EMAIL_RE = re.compile(r"\b[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}\b")

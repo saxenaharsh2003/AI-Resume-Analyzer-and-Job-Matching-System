@@ -1,9 +1,15 @@
 from __future__ import annotations
 
-from .ai_scorer import analyze_resume_with_openai
-from .job_matcher import tfidf_job_match_percentage
-from .job_recommender import recommend_jobs
-from .resume_parser import extract_text, parse_resume_text
+try:
+    from .ai_scorer import analyze_resume_with_openai
+    from .job_matcher import tfidf_job_match_percentage
+    from .job_recommender import recommend_jobs
+    from .resume_parser import extract_text, parse_resume_text
+except ImportError:  # Allows imports when backend is cwd
+    from ai_scorer import analyze_resume_with_openai
+    from job_matcher import tfidf_job_match_percentage
+    from job_recommender import recommend_jobs
+    from resume_parser import extract_text, parse_resume_text
 
 
 def _structured_score(

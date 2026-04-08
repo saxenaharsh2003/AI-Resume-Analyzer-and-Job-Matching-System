@@ -1,12 +1,19 @@
 from __future__ import annotations
 
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from .analyzer import analyze_resume
-from .auth import authenticate_user, create_user, init_auth_db, issue_token
-from .nlp_skills import SpacyModelError
+try:
+    from .analyzer import analyze_resume
+    from .auth import authenticate_user, create_user, init_auth_db, issue_token
+    from .nlp_skills import SpacyModelError
+    from .resume_parser import ResumeExtractionError
+except ImportError:  # Allows: uvicorn app:app from backend directory
+    from analyzer import analyze_resume
+    from auth import authenticate_user, create_user, init_auth_db, issue_token
+    from nlp_skills import SpacyModelError
+    from resume_parser import ResumeExtractionError
 
 
 class SignupRequest(BaseModel):
@@ -36,28 +43,47 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
     init_auth_db()
+    api_v1 = APIRouter(prefix="/api/v1")
 
-    @app.get("/healthz")
+    @app.get("/")
+    def root() -> dict:
+        return {"message": "API is running"}
+
+    @api_v1.get("/healthz")
     def healthz() -> dict:
         return {"status": "ok"}
 
-    @app.post("/signup")
-    def signup(payload: SignupRequest) -> dict:
+    def _signup_handler(payload: SignupRequest) -> dict:
         try:
             user = create_user(payload.name, payload.email, payload.password)
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e)) from e
         return {"name": user["name"], "email": user["email"], "token": issue_token()}
 
-    @app.post("/login")
-    def login(payload: LoginRequest) -> dict:
+    def _login_handler(payload: LoginRequest) -> dict:
         user = authenticate_user(payload.email, payload.password)
         if not user:
             raise HTTPException(status_code=401, detail="Invalid email or password.")
         return {"name": user["name"], "email": user["email"], "token": issue_token()}
 
-    @app.post("/api/v1/analyze")
-    async def analyze(
+    @api_v1.post("/signup")
+    def signup_v1(payload: SignupRequest) -> dict:
+        return _signup_handler(payload)
+
+    @api_v1.post("/login")
+    def login_v1(payload: LoginRequest) -> dict:
+        return _login_handler(payload)
+
+    @app.post("/signup")
+    def signup_legacy(payload: SignupRequest) -> dict:
+        return _signup_handler(payload)
+
+    @app.post("/login")
+    def login_legacy(payload: LoginRequest) -> dict:
+        return _login_handler(payload)
+
+    @api_v1.post("/analyze")
+    async def analyze_v1(
         resume: UploadFile = File(...),
         job_description: str | None = Form(None),
         location: str | None = Form(None),
@@ -84,6 +110,8 @@ def create_app() -> FastAPI:
                 job_description=job_description,
                 location=location,
             )
+        except ResumeExtractionError as e:
+            raise HTTPException(status_code=400, detail=str(e)) from e
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e)) from e
         except SpacyModelError as e:
@@ -93,6 +121,7 @@ def create_app() -> FastAPI:
 
         return result
 
+    app.include_router(api_v1)
     return app
 
 
