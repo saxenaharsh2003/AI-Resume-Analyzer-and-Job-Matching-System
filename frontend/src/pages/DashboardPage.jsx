@@ -13,7 +13,7 @@ import AnalyzeLoading, { DashboardSkeleton } from "../components/AnalyzeLoading"
 import FeaturesSection from "../components/FeaturesSection";
 import SectionDivider from "../components/SectionDivider";
 
-const API_URL = "http://127.0.0.1:8000/api/v1/analyze";
+const API_URL = "https://resume-analyzer-backend-dmno.onrender.com/api/v1/analyze";
 
 export default function DashboardPage({ user }) {
   const navigate = useNavigate();
@@ -40,6 +40,7 @@ export default function DashboardPage({ user }) {
   const handleUpload = async () => {
     if (!file) {
       setError("Please select a resume file first.");
+      window.alert("Please upload a resume file before analyzing.");
       return;
     }
     setError("");

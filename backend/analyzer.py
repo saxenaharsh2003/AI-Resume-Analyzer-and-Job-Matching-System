@@ -4,11 +4,13 @@ try:
     from .ai_scorer import analyze_resume_with_openai
     from .job_matcher import tfidf_job_match_percentage
     from .job_recommender import recommend_jobs
+    from .nlp_skills import extract_skills
     from .resume_parser import extract_text, parse_resume_text
 except ImportError:  # Allows imports when backend is cwd
     from ai_scorer import analyze_resume_with_openai
     from job_matcher import tfidf_job_match_percentage
     from job_recommender import recommend_jobs
+    from nlp_skills import extract_skills
     from resume_parser import extract_text, parse_resume_text
 
 
@@ -62,6 +64,11 @@ def analyze_resume(
         projects=parsed.projects,
     )
     match_percentage = tfidf_job_match_percentage(parsed.text, job_description)
+    jd_skills = extract_skills(job_description or "")
+    resume_skill_set = set(parsed.skills)
+    jd_skill_set = set(jd_skills)
+    matched_skills = sorted(resume_skill_set & jd_skill_set) if jd_skill_set else []
+    missing_skills = sorted(jd_skill_set - resume_skill_set) if jd_skill_set else []
     recommended_jobs = recommend_jobs(parsed.skills, top_k=5, location=location)
     ai = analyze_resume_with_openai(
         resume_text=parsed.text,
@@ -69,20 +76,57 @@ def analyze_resume(
         fallback_score=score,
     )
 
+    strengths: list[str] = []
+    weaknesses: list[str] = []
+    suggestions: list[str] = []
+    if len(parsed.skills) >= 6:
+        strengths.append("Strong skill coverage across technical areas.")
+    else:
+        weaknesses.append("Limited number of clearly identified technical skills.")
+        suggestions.append("Add a dedicated Skills section with core tools and frameworks.")
+    if parsed.experience:
+        strengths.append("Experience section detected with role history.")
+    else:
+        weaknesses.append("Experience details are missing or minimal.")
+        suggestions.append("Add role-wise achievements with measurable impact.")
+    if parsed.education:
+        strengths.append("Education information is present.")
+    else:
+        weaknesses.append("Education details are not clearly listed.")
+        suggestions.append("Add degree, institution, and graduation timeline.")
+    if parsed.projects:
+        strengths.append("Projects demonstrate practical application.")
+    else:
+        suggestions.append("Include 1-2 projects with outcomes and technologies used.")
+    if missing_skills:
+        suggestions.append(f"To improve job fit, prioritize: {', '.join(missing_skills[:5])}.")
+    if not suggestions:
+        suggestions.append("Tailor resume keywords and achievements to the target role.")
+
     return {
-        "name": parsed.name or "",
-        "email": parsed.email or "",
-        "phone": parsed.phone or "",
-        "skills": parsed.skills,
-        "education": parsed.education,
-        "experience": parsed.experience,
-        "projects": parsed.projects,
-        "score": score,
-        "job_match": {"match_percentage": match_percentage},
+        "resume": {
+            "name": parsed.name or "",
+            "email": parsed.email or "",
+            "skills": parsed.skills,
+            "education": "\n".join(parsed.education),
+            "experience": "\n".join(parsed.experience),
+            "projects": parsed.projects,
+        },
+        "analysis": {
+            "score": score,
+            "strengths": strengths,
+            "weaknesses": weaknesses,
+            "suggestions": suggestions,
+            "ai_feedback": ai.ai_feedback,
+            "ai_score": ai.ai_score,
+        },
+        "job_match": {
+            "match_percentage": match_percentage,
+            "matched_skills": matched_skills,
+            "missing_skills": missing_skills,
+        },
+        # Kept for dashboard compatibility and richer UI sections.
         "recommended_jobs": recommended_jobs,
-        "ai_feedback": ai.ai_feedback,
-        "ai_score": ai.ai_score,
-        # Rich metadata for frontend visualizations/cards
         "meta": {
             "sections": parsed.sections,
             "text_length": len(parsed.text),

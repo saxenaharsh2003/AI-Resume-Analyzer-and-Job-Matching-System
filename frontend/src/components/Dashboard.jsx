@@ -18,9 +18,9 @@ const PIE_COLORS = ["#22d3ee", "#6366f1"];
 
 function buildSkillData(skills, result) {
   const pool = [
-    ...(result?.experience || []),
-    ...(result?.projects || []),
-    ...(result?.education || []),
+    ...(result?.resume?.experience ? [result.resume.experience] : []),
+    ...(result?.resume?.projects || []),
+    ...(result?.resume?.education ? [result.resume.education] : []),
   ]
     .join(" ")
     .toLowerCase();
@@ -107,12 +107,18 @@ function experienceSummary(experience = []) {
 export default function Dashboard({ result }) {
   if (!result) return null;
 
-  const name = result?.name || "Not found";
-  const email = result?.email || "Not found";
-  const score = Number(result?.score || 0);
+  const name = result?.resume?.name || "Not found";
+  const email = result?.resume?.email || "Not found";
+  const score = Number(result?.analysis?.score || 0);
   const match = Number(result?.job_match?.match_percentage || 0);
-  const skills = result?.skills || [];
-  const experience = result?.experience || [];
+  const skills = result?.resume?.skills || [];
+  const experience = (result?.resume?.experience || "")
+    .split("\n")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const matchedSkills = result?.job_match?.matched_skills || [];
+  const missingSkills = result?.job_match?.missing_skills || [];
+  const suggestions = result?.analysis?.suggestions || [];
   const skillData = buildSkillData(skills, result);
   const expSummary = experienceSummary(experience);
 
@@ -218,6 +224,36 @@ export default function Dashboard({ result }) {
             <p>Matched: {match}%</p>
             <p>Missing: {Math.max(0, 100 - match)}%</p>
           </div>
+          <div className="mt-3 grid grid-cols-1 gap-2">
+            <div>
+              <p className="mb-1 text-xs text-cyan-200">Matched skills</p>
+              <div className="flex flex-wrap gap-1.5">
+                {matchedSkills.length ? (
+                  matchedSkills.slice(0, 8).map((skill) => (
+                    <span key={`m-${skill}`} className="rounded-md border border-cyan-300/25 bg-cyan-400/10 px-2 py-0.5 text-[11px] text-cyan-200">
+                      {skill}
+                    </span>
+                  ))
+                ) : (
+                  <span className="text-xs text-slate-400">No matched skills from JD.</span>
+                )}
+              </div>
+            </div>
+            <div>
+              <p className="mb-1 text-xs text-rose-200">Missing skills</p>
+              <div className="flex flex-wrap gap-1.5">
+                {missingSkills.length ? (
+                  missingSkills.slice(0, 8).map((skill) => (
+                    <span key={`x-${skill}`} className="rounded-md border border-rose-300/25 bg-rose-400/10 px-2 py-0.5 text-[11px] text-rose-200">
+                      {skill}
+                    </span>
+                  ))
+                ) : (
+                  <span className="text-xs text-slate-400">No missing skills from JD.</span>
+                )}
+              </div>
+            </div>
+          </div>
         </motion.div>
       </div>
 
@@ -266,6 +302,21 @@ export default function Dashboard({ result }) {
           </div>
         </motion.div>
       </div>
+
+      <motion.div whileHover={{ scale: 1.005 }} className="glass-card neon-ring p-4">
+        <h4 className="typo-label mb-3 text-sm">Suggestions</h4>
+        {suggestions.length ? (
+          <ul className="space-y-1.5">
+            {suggestions.map((item, idx) => (
+              <li key={`s-${idx}`} className="text-sm text-slate-200">
+                • {item}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-sm text-slate-400">No suggestions available.</p>
+        )}
+      </motion.div>
     </motion.section>
   );
 }
