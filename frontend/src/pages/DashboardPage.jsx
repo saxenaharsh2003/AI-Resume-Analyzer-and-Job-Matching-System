@@ -1,17 +1,19 @@
-import { useRef, useState } from "react";
+import { Suspense, lazy, useRef, useState } from "react";
 import { AnimatePresence, motion, useScroll, useTransform } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { clearStoredUser } from "../auth";
-import Hero from "../components/Hero";
-import Scene3D from "../components/Scene3D";
-import UploadCard from "../components/UploadCard";
-import Dashboard from "../components/Dashboard";
-import JobRecommendations from "../components/JobRecommendations";
-import ResultCard from "../components/ResultCard";
-import Navbar from "../components/Navbar";
 import AnalyzeLoading, { DashboardSkeleton } from "../components/AnalyzeLoading";
-import FeaturesSection from "../components/FeaturesSection";
-import SectionDivider from "../components/SectionDivider";
+import Loader from "../components/Loader";
+
+const Navbar = lazy(() => import("../components/Navbar"));
+const Hero = lazy(() => import("../components/Hero"));
+const Scene3D = lazy(() => import("../components/Scene3D"));
+const UploadCard = lazy(() => import("../components/UploadCard"));
+const Dashboard = lazy(() => import("../components/Dashboard"));
+const JobRecommendations = lazy(() => import("../components/JobRecommendations"));
+const ResultCard = lazy(() => import("../components/ResultCard"));
+const FeaturesSection = lazy(() => import("../components/FeaturesSection"));
+const SectionDivider = lazy(() => import("../components/SectionDivider"));
 
 const API_URL = "https://resume-analyzer-backend-dmno.onrender.com/api/v1/analyze";
 
@@ -64,16 +66,22 @@ export default function DashboardPage({ user }) {
 
   return (
     <div ref={containerRef} onMouseMove={handleMouseMove} className="relative overflow-x-hidden">
-      <Scene3D mouse={mouseRef} />
+      <Suspense fallback={null}>
+        <Scene3D mouse={mouseRef} />
+      </Suspense>
       <div className="animated-gradient pointer-events-none fixed inset-0 -z-20 opacity-70" />
       <motion.main style={{ y: parallaxY }} className="mx-auto min-h-screen w-full max-w-7xl px-4 py-5 md:px-8 md:py-7">
-        <Navbar userName={user?.name || "User"} onLogout={handleLogout} />
-        <Hero />
-        <FeaturesSection />
-        <SectionDivider />
+        <Suspense fallback={<Loader label="Loading dashboard..." />}>
+          <Navbar userName={user?.name || "User"} onLogout={handleLogout} />
+          <Hero />
+          <FeaturesSection />
+          <SectionDivider />
+        </Suspense>
 
         <motion.div className="glass-card neon-ring p-4 md:p-5" initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.12, duration: 0.4 }} whileHover={{ scale: 1.01 }}>
-          <UploadCard setFile={setFile} handleUpload={handleUpload} loading={loading} />
+          <Suspense fallback={<Loader label="Loading upload..." />}>
+            <UploadCard setFile={setFile} handleUpload={handleUpload} loading={loading} />
+          </Suspense>
         </motion.div>
 
         {error ? (
@@ -93,11 +101,13 @@ export default function DashboardPage({ user }) {
                 <h2 className="typo-section-title">Analysis Dashboard</h2>
                 <p className="typo-subtitle text-sm">Interactive resume insights and structured details</p>
               </div>
-              <Dashboard result={result} />
-              <SectionDivider />
-              <JobRecommendations jobs={result?.recommended_jobs || []} />
-              <SectionDivider />
-              <ResultCard result={result} />
+              <Suspense fallback={<Loader label="Loading insights..." />}>
+                <Dashboard result={result} />
+                <SectionDivider />
+                <JobRecommendations jobs={result?.recommended_jobs || []} />
+                <SectionDivider />
+                <ResultCard result={result} />
+              </Suspense>
             </motion.div>
           ) : null}
         </AnimatePresence>
