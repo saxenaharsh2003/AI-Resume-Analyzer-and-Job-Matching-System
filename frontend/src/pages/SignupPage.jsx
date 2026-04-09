@@ -1,9 +1,10 @@
 import { useState } from "react";
+import axios from "axios";
 import { motion } from "framer-motion";
 import { Link, useNavigate } from "react-router-dom";
 import { storeUser } from "../auth";
 
-const API_BASE = "http://127.0.0.1:8000";
+const API_BASE = import.meta.env.VITE_API_URL;
 
 export default function SignupPage() {
   const navigate = useNavigate();
@@ -31,17 +32,30 @@ export default function SignupPage() {
     setError("");
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/signup`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, email, password }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.detail || "Signup failed.");
+      const { data } = await axios.post(
+        `${API_BASE}/signup`,
+        { name, email, password },
+        { headers: { "Content-Type": "application/json" } }
+      );
       storeUser({ name: data.name, email: data.email, token: data.token });
       navigate("/dashboard", { replace: true });
     } catch (err) {
-      setError(err.message || "Unable to create account.");
+      if (err.response) {
+        const detail = err.response.data?.detail;
+        let message = "Signup failed.";
+        if (typeof detail === "string") {
+          message = detail;
+        } else if (Array.isArray(detail)) {
+          message = detail
+            .map((item) => (typeof item === "object" && item?.msg ? item.msg : String(item)))
+            .join(" ");
+        } else if (detail != null) {
+          message = String(detail);
+        }
+        setError(message);
+      } else {
+        setError("Server not responding");
+      }
     } finally {
       setLoading(false);
     }

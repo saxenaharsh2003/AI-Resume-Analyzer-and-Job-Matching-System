@@ -15,7 +15,7 @@ const ResultCard = lazy(() => import("../components/ResultCard"));
 const FeaturesSection = lazy(() => import("../components/FeaturesSection"));
 const SectionDivider = lazy(() => import("../components/SectionDivider"));
 
-const API_URL = "https://resume-analyzer-backend-dmno.onrender.com/api/v1/analyze";
+const API_URL = `${import.meta.env.VITE_API_URL}/api/v1/analyze`;
 
 export default function DashboardPage({ user }) {
   const navigate = useNavigate();
