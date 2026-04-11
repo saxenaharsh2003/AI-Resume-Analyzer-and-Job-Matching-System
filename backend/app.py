@@ -7,12 +7,10 @@ from pydantic import BaseModel
 try:
     from .analyzer import analyze_resume
     from .auth import authenticate_user, create_user, init_auth_db, issue_token
-    from .nlp_skills import SpacyModelError
     from .resume_parser import ResumeExtractionError
 except ImportError:  # Allows: uvicorn app:app from backend directory
     from analyzer import analyze_resume
     from auth import authenticate_user, create_user, init_auth_db, issue_token
-    from nlp_skills import SpacyModelError
     from resume_parser import ResumeExtractionError
 
 
@@ -114,8 +112,6 @@ def create_app() -> FastAPI:
             raise HTTPException(status_code=400, detail=str(e)) from e
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e)) from e
-        except SpacyModelError as e:
-            raise HTTPException(status_code=503, detail=str(e)) from e
         except Exception as e:
             raise HTTPException(status_code=500, detail="Failed to analyze resume.") from e
 

@@ -1,6 +1,7 @@
 import { Suspense, lazy, useRef, useState } from "react";
 import { AnimatePresence, motion, useScroll, useTransform } from "framer-motion";
 import { useNavigate } from "react-router-dom";
+import { apiUrl, formatFastApiDetail, getApiBase, readJsonOrTextBody } from "../apiConfig";
 import { clearStoredUser } from "../auth";
 import AnalyzeLoading, { DashboardSkeleton } from "../components/AnalyzeLoading";
 import Loader from "../components/Loader";
@@ -15,7 +16,7 @@ const ResultCard = lazy(() => import("../components/ResultCard"));
 const FeaturesSection = lazy(() => import("../components/FeaturesSection"));
 const SectionDivider = lazy(() => import("../components/SectionDivider"));
 
-const API_URL = `${import.meta.env.VITE_API_URL}/api/v1/analyze`;
+const ANALYZE_URL = apiUrl("/api/v1/analyze");
 
 export default function DashboardPage({ user }) {
   const navigate = useNavigate();
@@ -53,12 +54,30 @@ export default function DashboardPage({ user }) {
     formData.append("resume", file);
 
     try {
-      const response = await fetch(API_URL, { method: "POST", body: formData });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data?.detail || "Failed to analyze resume.");
+      if (import.meta.env.DEV) {
+        console.log("[analyze] POST", ANALYZE_URL, "| API base", getApiBase());
+      }
+      const response = await fetch(ANALYZE_URL, {
+        method: "POST",
+        body: formData,
+      });
+      if (import.meta.env.DEV) {
+        console.log("[analyze] response status", response.status);
+      }
+      const data = await readJsonOrTextBody(response);
+      if (import.meta.env.DEV) {
+        console.log("[analyze] response body", data);
+      }
+      if (!response.ok) {
+        const msg = formatFastApiDetail(data) || `Request failed (${response.status})`;
+        throw new Error(msg);
+      }
       setResult(data);
     } catch (err) {
-      setError(err.message || "Backend error.");
+      const fallback = err instanceof TypeError && err.message.includes("fetch")
+        ? "Cannot reach API. Check that the backend is running and VITE_API_URL matches (use http://127.0.0.1:8000)."
+        : "Backend error.";
+      setError(err.message || fallback);
     } finally {
       setLoading(false);
     }

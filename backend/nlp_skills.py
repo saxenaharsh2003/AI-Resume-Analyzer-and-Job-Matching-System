@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import subprocess
+import sys
+import threading
 from collections import defaultdict
 
 import spacy
-from spacy.matcher import PhraseMatcher
 from spacy.language import Language
+from spacy.matcher import PhraseMatcher
 
 try:
     from .skills_taxonomy import DEFAULT_SKILLS, canonicalize_skill
@@ -13,42 +16,57 @@ except ImportError:  # Allows imports when backend is cwd
 
 _MAX_DOC_CHARS = 1_000_000
 
-_nlp: Language | None = None
-_matcher: PhraseMatcher | None = None
+SPACY_MODEL = "en_core_web_sm"
 
 
-class SpacyModelError(RuntimeError):
-    """Raised when the spaCy English model is missing or fails to load."""
-
-
-def _ensure_nlp_and_matcher() -> tuple[Language, PhraseMatcher]:
-    global _nlp, _matcher
-    if _nlp is not None and _matcher is not None:
-        return _nlp, _matcher
-
+def load_spacy_model() -> Language | None:
+    """Load spaCy English model; download into current Python env if missing. Never raises."""
     try:
-        _nlp = spacy.load("en_core_web_sm")
-    except OSError as e:
-        raise SpacyModelError(
-            "spaCy model 'en_core_web_sm' is not installed. Run: "
-            "python -m spacy download en_core_web_sm"
-        ) from e
+        return spacy.load(SPACY_MODEL)
+    except Exception:
+        try:
+            # sys.executable (not "python") so venv and uvicorn use the same interpreter.
+            subprocess.run(
+                [sys.executable, "-m", "spacy", "download", SPACY_MODEL],
+                check=True,
+                timeout=600,
+            )
+            return spacy.load(SPACY_MODEL)
+        except Exception as e:
+            print("SpaCy model load failed:", e)
+            return None
 
-    by_canon: dict[str, list[str]] = defaultdict(list)
-    for skill in DEFAULT_SKILLS:
-        s = skill.strip()
-        if not s:
-            continue
-        by_canon[canonicalize_skill(skill)].append(s)
 
-    _matcher = PhraseMatcher(_nlp.vocab, attr="LOWER")
-    for canon, variants in by_canon.items():
-        uniq = sorted(set(variants), key=len, reverse=True)
-        docs = [_nlp.make_doc(v) for v in uniq]
-        if docs:
-            _matcher.add(canon, docs)
+nlp = load_spacy_model()
 
-    return _nlp, _matcher
+_matcher: PhraseMatcher | None = None
+_matcher_lock = threading.Lock()
+
+
+def _ensure_matcher() -> PhraseMatcher | None:
+    """Build PhraseMatcher once when spaCy is available."""
+    global _matcher
+    if nlp is None:
+        return None
+    if _matcher is not None:
+        return _matcher
+    with _matcher_lock:
+        if _matcher is not None:
+            return _matcher
+        by_canon: dict[str, list[str]] = defaultdict(list)
+        for skill in DEFAULT_SKILLS:
+            s = skill.strip()
+            if not s:
+                continue
+            by_canon[canonicalize_skill(skill)].append(s)
+
+        _matcher = PhraseMatcher(nlp.vocab, attr="LOWER")
+        for canon, variants in by_canon.items():
+            uniq = sorted(set(variants), key=len, reverse=True)
+            docs = [nlp.make_doc(v) for v in uniq]
+            if docs:
+                _matcher.add(canon, docs)
+    return _matcher
 
 
 def _resolve_overlaps(spans: list[tuple[int, int, str]]) -> list[tuple[int, int, str]]:
@@ -62,10 +80,10 @@ def _resolve_overlaps(spans: list[tuple[int, int, str]]) -> list[tuple[int, int,
     return chosen
 
 
-def _skills_from_doc(doc, nlp: Language, matcher: PhraseMatcher) -> list[str]:
+def _skills_from_doc(doc, nlp_model: Language, matcher: PhraseMatcher) -> list[str]:
     raw_spans: list[tuple[int, int, str]] = []
     for match_id, start, end in matcher(doc):
-        label = nlp.vocab.strings[match_id]
+        label = nlp_model.vocab.strings[match_id]
         raw_spans.append((start, end, label))
 
     merged = _resolve_overlaps(raw_spans)
@@ -94,14 +112,23 @@ def _nlp_stats(doc) -> dict[str, int]:
 
 def extract_skills_and_stats(text: str) -> tuple[list[str], dict[str, int]]:
     """
-    One spaCy pass: taxonomy skills via PhraseMatcher + shallow linguistic stats for suggestions.
+    Taxonomy skills via PhraseMatcher + shallow stats. If spaCy is unavailable, degrades
+    to empty skills and zero stats (no exceptions).
     """
+    empty_stats = {"verb_count": 0, "token_count": 0, "sentence_count": 0}
     if not text or not text.strip():
-        return [], {"verb_count": 0, "token_count": 0, "sentence_count": 0}
+        return [], empty_stats
 
-    nlp, matcher = _ensure_nlp_and_matcher()
+    matcher = _ensure_matcher()
+    if not nlp or matcher is None:
+        return [], empty_stats
+
     snippet = text if len(text) <= _MAX_DOC_CHARS else text[:_MAX_DOC_CHARS]
-    doc = nlp(snippet)
+    if nlp:
+        doc = nlp(snippet)
+    else:
+        return [], empty_stats
+
     skills = _skills_from_doc(doc, nlp, matcher)
     stats = _nlp_stats(doc)
     return skills, stats

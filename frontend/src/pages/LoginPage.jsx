@@ -1,9 +1,8 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { Link, useNavigate } from "react-router-dom";
+import { apiUrl, formatFastApiDetail, getApiBase, readJsonOrTextBody } from "../apiConfig";
 import { storeUser } from "../auth";
-
-const API_BASE = import.meta.env.VITE_API_URL;
 
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -29,17 +28,31 @@ export default function LoginPage() {
     setError("");
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/login`, {
+      const loginUrl = apiUrl("/api/v1/login");
+      if (import.meta.env.DEV) {
+        console.log("[login] POST", loginUrl, "| API base", getApiBase());
+      }
+      const res = await fetch(loginUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.detail || "Login failed.");
+      if (import.meta.env.DEV) {
+        console.log("[login] response status", res.status);
+      }
+      const data = await readJsonOrTextBody(res);
+      if (import.meta.env.DEV) {
+        console.log("[login] response body", data);
+      }
+      if (!res.ok) throw new Error(formatFastApiDetail(data) || "Login failed.");
       storeUser({ name: data.name, email: data.email, token: data.token });
       navigate("/dashboard", { replace: true });
     } catch (err) {
-      setError(err.message || "Unable to login.");
+      const fallback =
+        err instanceof TypeError && err.message.includes("fetch")
+          ? "Cannot reach API. Check VITE_API_URL (e.g. http://127.0.0.1:8000) and that the backend is running."
+          : "Unable to login.";
+      setError(err.message || fallback);
     } finally {
       setLoading(false);
     }

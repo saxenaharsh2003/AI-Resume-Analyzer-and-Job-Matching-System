@@ -1,10 +1,8 @@
 import { useState } from "react";
-import axios from "axios";
 import { motion } from "framer-motion";
 import { Link, useNavigate } from "react-router-dom";
+import { apiUrl, formatFastApiDetail, getApiBase, readJsonOrTextBody } from "../apiConfig";
 import { storeUser } from "../auth";
-
-const API_BASE = import.meta.env.VITE_API_URL;
 
 export default function SignupPage() {
   const navigate = useNavigate();
@@ -32,30 +30,33 @@ export default function SignupPage() {
     setError("");
     setLoading(true);
     try {
-      const { data } = await axios.post(
-        `${API_BASE}/signup`,
-        { name, email, password },
-        { headers: { "Content-Type": "application/json" } }
-      );
+      const signupUrl = apiUrl("/api/v1/signup");
+      if (import.meta.env.DEV) {
+        console.log("[signup] POST", signupUrl, "| API base", getApiBase());
+      }
+      const res = await fetch(signupUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, email, password }),
+      });
+      if (import.meta.env.DEV) {
+        console.log("[signup] response status", res.status);
+      }
+      const data = await readJsonOrTextBody(res);
+      if (import.meta.env.DEV) {
+        console.log("[signup] response body", data);
+      }
+      if (!res.ok) {
+        throw new Error(formatFastApiDetail(data) || "Signup failed.");
+      }
       storeUser({ name: data.name, email: data.email, token: data.token });
       navigate("/dashboard", { replace: true });
     } catch (err) {
-      if (err.response) {
-        const detail = err.response.data?.detail;
-        let message = "Signup failed.";
-        if (typeof detail === "string") {
-          message = detail;
-        } else if (Array.isArray(detail)) {
-          message = detail
-            .map((item) => (typeof item === "object" && item?.msg ? item.msg : String(item)))
-            .join(" ");
-        } else if (detail != null) {
-          message = String(detail);
-        }
-        setError(message);
-      } else {
-        setError("Server not responding");
-      }
+      const fallback =
+        err instanceof TypeError && err.message.includes("fetch")
+          ? "Cannot reach API. Check VITE_API_URL (e.g. http://127.0.0.1:8000) and that the backend is running."
+          : "Server not responding";
+      setError(err.message || fallback);
     } finally {
       setLoading(false);
     }
@@ -104,4 +105,3 @@ export default function SignupPage() {
     </div>
   );
 }
-

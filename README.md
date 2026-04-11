@@ -13,11 +13,25 @@
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
+```
+
+This installs **spaCy** only (`requirements.txt`). The **`en_core_web_sm`** language model is not a pip dependency; install it in the **same** venv you use for uvicorn.
+
+**Automatic model install:** When the backend imports `nlp_skills`, it tries `spacy.load("en_core_web_sm")`. If that fails, it runs `python -m spacy download en_core_web_sm` (via the current interpreter) and loads again. If download/load still fails, NLP-backed skill extraction is skipped and **`/api/v1/analyze` still returns 200**.
+
+**Manual install** (recommended for production / offline):
+
+```powershell
 python -m spacy download en_core_web_sm
+```
+
+Then start the API:
+
+```powershell
 uvicorn backend.app:app --reload --host 127.0.0.1 --port 8000
 ```
 
-If the spaCy model is missing, `POST /api/v1/analyze` returns **503** with install instructions.
+If the model cannot be loaded or installed (e.g. offline), `nlp_skills` logs the error and **`POST /api/v1/analyze` still returns 200** with NLP-backed JD skill extraction empty; resume parsing and other scoring continue. Install the model in the same venv as uvicorn to restore full behavior.
 
 Open docs at `http://127.0.0.1:8000/docs`.
 
